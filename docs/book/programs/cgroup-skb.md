@@ -1,50 +1,41 @@
 # Cgroup SKB
 
-!!! example "Source Code"
+!!! example "源代码"
 
-    Full code for the example in this chapter is available [here](https://github.com/aya-rs/book/tree/main/examples/cgroup-skb-egress)
+    本章示例的完整代码可在[此处](https://github.com/aya-rs/book/tree/main/examples/cgroup-skb-egress)找到。
 
-## What is Cgroup SKB?
+## 什么是Cgroup SKB？
 
-Cgroup SKB programs are attached to v2 cgroups and get triggered by network
-traffic (egress or ingress) associated with processes inside the given cgroup.
-They allow to intercept and filter the traffic associated with particular
-cgroups (and therefore - containers).
+Cgroup SKB程序附加到v2 cgroup，并通过与给定cgroup内的进程相关的网络流量（出站或入站）触发。它们允许拦截和过滤与特定cgroup（因此也包括容器）相关的流量。
 
-## What's the difference between Cgroup SKB and Classifiers?
+## Cgroup SKB和分类器有什么区别？
 
-Both Cgroup SKB and Classifiers receive the same type of context -
-`SkBuffContext`.
+Cgroup SKB和分类器都接收相同类型的上下文——`SkBuffContext`。
 
-The difference is that Classifiers are attached to the network interface.
+区别在于分类器附加到网络接口。
 
-## Example project
+## 示例项目
 
-This example will be similar to the [Classifier](classifiers.md) example - a
-program which allows the dropping of egress traffic, but for the specific
-cgroup.
+本示例将类似于[分类器](classifiers.md)示例——一个允许丢弃特定cgroup出站流量的程序。
 
-## Design
+## 设计
 
-We're going to:
+我们将：
 
-- Create a `HashMap` that will act as a blocklist.
-- Check the destination IP address from the packet against the `HashMap` to
-  make a policy decision (pass or drop).
-- Add entries to the blocklist from userspace.
+- 创建一个`HashMap`，用作阻止列表。
+- 从数据包中检查目的IP地址，并根据`HashMap`做出策略决策（通过或丢弃）。
+- 从用户空间向阻止列表中添加条目。
 
-## Generating bindings to vmlinux.h
+## 生成vmlinux.h的绑定
 
-In this example, we are going to use one kernel structure called `iphdr`, which
-represents the IP protocol header. We need to generate Rust bindings to it.
+在本例中，我们将使用一个名为`iphdr`的内核结构，它代表IP协议头。我们需要生成它的Rust绑定。
 
-First, we must make sure that `bindgen` is installed.
+首先，我们必须确保`bindgen`已安装。
 ```sh
 cargo install bindgen-cli
 ```
 
-Let's use `xtask` to automate the process of generating bindings so we can
-easily reproduce it in the future by adding the following code:
+我们使用`xtask`来自动化绑定生成过程，以便将来可以通过添加以下代码轻松重现：
 
 === "xtask/src/codegen.rs"
 
@@ -64,90 +55,80 @@ easily reproduce it in the future by adding the following code:
     --8<-- "examples/cgroup-skb-egress/xtask/src/main.rs"
     ```
 
-Once we've generated our file using `cargo xtask codegen` from the root of the
-project, we can access it by including `mod bindings` from eBPF code.
+一旦我们从项目根目录使用`cargo xtask codegen`生成了文件，我们可以通过在eBPF代码中包含`mod bindings`来访问它。
 
-## eBPF code
+## eBPF代码
 
-The program is going to start with a definition of `BLOCKLIST` map. To enforce
-the police, the program is going to lookup the destination IP address in that
-map. If the map entry for that address exists, we are going to drop the packet
-by returning `0`. Otherwise, we are going to accept it by returning `1`.
+程序将从定义`BLOCKLIST`映射开始。为了强制执行策略，程序将在该映射中查找目的IP地址。如果该地址的映射条目存在，我们将通过返回`0`来丢弃数据包。否则，我们将通过返回`1`来接受它。
 
-Here's how the eBPF code looks like:
+以下是eBPF代码的样子：
 
 ```rust linenums="1" title="cgroup-skb-egress-ebpf/src/main.rs"
 --8<-- "examples/cgroup-skb-egress/cgroup-skb-egress-ebpf/src/main.rs"
 ```
 
-1. Create our map.
-2. Check if we should allow or deny our packet.
-3. Return the correct action.
+1. 创建我们的映射。
+2. 检查是否应该允许或拒绝数据包。
+3. 返回正确的操作。
 
-## Userspace code
+## 用户空间代码
 
-The purpose of the userspace code is to load the eBPF program, attach it to the
-cgroup and then populate the map with an address to block.
+用户空间代码的目的是加载eBPF程序，将其附加到cgroup，然后用要阻止的地址填充映射。
 
-In this example, we'll block all egress traffic going to `1.1.1.1`.
+在此示例中，我们将阻止所有出站到`1.1.1.1`的流量。
 
-Here's how the code looks like:
+以下是代码的样子：
 
 ```rust linenums="1" title="cgroup-skb-egress/src/main.rs"
 --8<-- "examples/cgroup-skb-egress/cgroup-skb-egress/src/main.rs"
 ```
 
-1. Loading the eBPF program.
-2. Attaching it to the given cgroup.
-3. Populating the map with remote IP addresses which we want to prevent the
-   egress traffic to.
+1. 加载eBPF程序。
+2. 将其附加到给定的cgroup。
+3. 用我们希望阻止出站流量的远程IP地址填充映射。
 
-The third thing is done with getting a reference to the `BLOCKLIST` map and
-calling `blocklist.insert`. Using `IPv4Addr` type in Rust will let us to read
-the human-readable representation of IP address and convert it to `u32`, which
-is an appropriate type to use in eBPF maps.
+第三步是通过获取`BLOCKLIST`映射的引用并调用`blocklist.insert`完成的。在Rust中使用`IPv4Addr`类型将允许我们读取IP地址的易读表示并将其转换为`u32`，这是在eBPF映射中使用的适当类型。
 
-## Testing the program
+## 测试程序
 
-First, check where cgroups v2 are mounted:
+首先，检查cgroup v2的挂载位置：
 
 ```console
 $ mount | grep cgroup2
 cgroup2 on /sys/fs/cgroup type cgroup2 (rw,nosuid,nodev,noexec,relatime,nsdelegate,memory_recursiveprot)
 ```
 
-The most common locations are either `/sys/fs/cgroup` or `/sys/fs/cgroup/unified`.
+最常见的位置是`/sys/fs/cgroup`或`/sys/fs/cgroup/unified`。
 
-Inside that location, we need to create our new cgroup (as root):
+在该位置内，我们需要创建一个新的cgroup（以root身份）：
 
 ```console
 # mkdir /sys/fs/cgroup/foo
 ```
 
-Then run the program with:
+然后运行程序：
 
 ```console
 RUST_LOG=info cargo xtask run
 ```
 
-And then, in a separate terminal, as root, try to access `1.1.1.1`:
+然后，在一个单独的终端中，以root身份，尝试访问`1.1.1.1`：
 
 ```console
-# bash -c "echo \$$ >> /sys/fs/cgroup/foo/cgroup.procs && curl 1.1.1.1"
+# bash -c "echo \$ >> /sys/fs/cgroup/foo/cgroup.procs && curl 1.1.1.1"
 ```
 
-That command should hang and the logs of our program should look like:
+该命令应挂起，我们程序的日志应如下所示：
 
 ```console
 LOG: DST 1.1.1.1, ACTION 0
 LOG: DST 1.1.1.1, ACTION 0
 ```
 
-On the other hand, accessing any other address should be successful, for
-example:
+另一方面，访问任何其他地址应成功，例如：
 
 ```console
-# bash -c "echo \$$ >> /sys/fs/cgroup/foo/cgroup.procs && curl google.com"
+# bash -c "echo \$ >> /sys/fs/cgroup/foo/cgroup.procs && curl google.com"
 <HTML><HEAD><meta http-equiv="content-type" content="text/html;charset=utf-8">
 <TITLE>301 Moved</TITLE></HEAD><BODY>
 <H1>301 Moved</H1>
@@ -156,7 +137,7 @@ The document has moved
 </BODY></HTML>
 ```
 
-And should result in the following logs:
+并应产生以下日志：
 
 ```console
 LOG: DST 192.168.88.10, ACTION 1

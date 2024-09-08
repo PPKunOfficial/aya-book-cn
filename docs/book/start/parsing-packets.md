@@ -1,33 +1,23 @@
-# Parsing packets
+# 解析数据包
 
-In the previous chapter, our XDP application ran until Ctrl-C was hit and
-permitted all the traffic. Each time a packet was received, the eBPF program
-logged the string `"received a packet"`. In this chapter we're going to show how
-to parse packets.
+在上一章中，我们的XDP应用程序运行直到按下Ctrl-C，并允许所有流量。每次接收到数据包时，eBPF程序会记录字符串`"received a packet"`。在本章中，我们将展示如何解析数据包。
 
-While we could go all out and parse data all the way up to L7, we'll constrain
-our example to L3, and to make things easier, IPv4 only.
+虽然我们可以深入解析到L7，但我们将把示例限制在L3，并且为了简化，只处理IPv4。
 
-!!! example "Source code"
+!!! example "源代码"
 
-    Full code for the example in this chapter is available
-    [here](https://github.com/aya-rs/book/tree/main/examples/xdp-log)
+    本章示例的完整代码可在[此处](https://github.com/aya-rs/book/tree/main/examples/xdp-log)找到。
 
-## Using network types
+## 使用网络类型
 
-We're going to log the source IP address of incoming packets. So we'll need to:
+我们将记录传入数据包的源IP地址。因此，我们需要：
 
-* Read the Ethernet header to determine if we're dealing with an IPv4 packet,
-  else terminate parsing.
-* Read the source IP Address from the IPv4 header.
+* 读取以太网头以确定是否处理IPv4数据包，否则终止解析。
+* 从IPv4头读取源IP地址。
 
-We could read the specifications of those protocols and parse manually, but
-instead we're going to use the [network-types](https://crates.io/crates/network-types)
-crate which provides convenient type definitions for many of the common Internet
-protocols.
+我们可以查阅这些协议的规范并手动解析，但我们将使用[network-types](https://crates.io/crates/network-types) crate，它提供了许多常见互联网协议的便捷类型定义。
 
-Let's add it to our eBPF crate by adding a dependency on `network-types` in our
-`xdp-log-ebpf/Cargo.toml`:
+让我们通过在`xdp-log-ebpf/Cargo.toml`中添加对`network-types`的依赖，将其添加到我们的eBPF crate中：
 
 === "xdp-log-ebpf/Cargo.toml"
 
@@ -35,51 +25,41 @@ Let's add it to our eBPF crate by adding a dependency on `network-types` in our
     --8<-- "examples/xdp-log/xdp-log-ebpf/Cargo.toml"
     ```
 
-## Getting packet data from the context
+## 从上下文获取数据包数据
 
-`XdpContext` contains two fields that we're going to use: `data` and `data_end`,
-which are respectively a pointer to the beginning and to the end of the packet.
+`XdpContext`包含我们将使用的两个字段：`data`和`data_end`，它们分别是指向数据包开始和结束的指针。
 
-In order to access the data in the packet and to ensure that we do so in a way
-that keeps the eBPF verifier happy, we're going to introduce a helper function
-called `ptr_at`. The function ensures that before we access any packet data, we
-insert the bound checks which are required by the verifier.
+为了访问数据包中的数据并确保以使eBPF验证器满意的方式进行，我们将引入一个名为`ptr_at`的辅助函数。该函数确保在访问任何数据包数据之前，我们插入验证器所需的边界检查。
 
-Finally to access individual fields from the Ethernet and IPv4 headers, we're
-going to use the memoffset crate, let's add a dependency for it in
-`xdp-log-ebpf/Cargo.toml`.
+最后，为了访问以太网和IPv4头的各个字段，我们将使用memoffset crate，让我们在`xdp-log-ebpf/Cargo.toml`中为其添加依赖。
 
-!!! tip "Reading fields using `offset_of!`"
+!!! tip "使用`offset_of!`读取字段"
 
-    As there is limited stack space, it's more memory efficient to use the
-    `offset_of!` macro to read a single field from a struct, rather than reading
-    the whole struct and accessing the field by name.
+    由于堆栈空间有限，使用`offset_of!`宏读取结构体中的单个字段比读取整个结构体并通过名称访问字段更节省内存。
 
-The resulting code looks like this:
+生成的代码如下所示：
 
 ```rust linenums="1" title="xdp-log-ebpf/src/main.rs"
 --8<-- "examples/xdp-log/xdp-log-ebpf/src/main.rs"
 ```
 
-1. Here we define `ptr_at` to ensure that packet access is always bound checked.
-2. Use `ptr_at` to read our ethernet header.
-3. Here we log IP and port.
+1. 在这里我们定义`ptr_at`以确保数据包访问总是进行边界检查。
+2. 使用`ptr_at`读取我们的以太网头。
+3. 在这里我们记录IP和端口。
 
-Don't forget to rebuild your eBPF program!
+不要忘记重新构建您的eBPF程序！
 
-## User-space component
+## 用户空间组件
 
-Our user-space code doesn't really differ from the previous chapter, but for the
-reference, here's the code:
+我们的用户空间代码与上一章没有太大区别，但为了参考，以下是代码：
 
 ```rust linenums="1" title="xdp-log/src/main.rs"
 --8<-- "examples/xdp-log/xdp-log/src/main.rs"
 ```
 
-## Running the program
+## 运行程序
 
-As before, the interface can be overwritten by providing the interface name as a
-parameter, for example, `RUST_LOG=info cargo xtask run -- --iface wlp2s0`.
+与之前一样，可以通过提供接口名称作为参数来覆盖接口，例如，`RUST_LOG=info cargo xtask run -- --iface wlp2s0`。
 
 ```console
 $ RUST_LOG=info cargo xtask run
@@ -89,3 +69,5 @@ $ RUST_LOG=info cargo xtask run
 [2022-12-22T11:32:21Z INFO  xdp_log] SRC IP: 172.52.22.104, SRC PORT: 443
 [2022-12-22T11:32:21Z INFO  xdp_log] SRC IP: 234.130.159.162, SRC PORT: 443
 ```
+
+每次接收到数据包时，程序会记录其源IP地址和端口。

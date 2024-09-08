@@ -1,47 +1,43 @@
-# Probes
+# 探针
 
-!!! example "Source Code"
+!!! example "源代码"
 
-    Full code for the example in this chapter is available [here](https://github.com/aya-rs/book/tree/main/examples/kprobetcp).
+    本章示例的完整代码可在[此处](https://github.com/aya-rs/book/tree/main/examples/kprobetcp)找到。
 
-# What are the probes in eBPF?
+## eBPF中的探针是什么？
 
-The probe BPF programs attach to kernel (kprobes) or user-side (uprobes) functions and are able to access the function parameters of those functions.  You can find more information about probes in the [kernel documentation](https://docs.kernel.org/trace/kprobes.html), including the difference between kprobes and kretprobes.
+探针BPF程序可以附加到内核（kprobes）或用户端（uprobes）函数，并能够访问这些函数的参数。您可以在[内核文档](https://docs.kernel.org/trace/kprobes.html)中找到有关探针的更多信息，包括kprobes和kretprobes之间的区别。
 
-## Example project
+## 示例项目
 
-To illustrate kprobes with Aya, let's write a program which
-attaches a eBPF handler to the [`tcp_connect`](https://elixir.bootlin.com/linux/latest/source/net/ipv4/tcp_output.c#L3837) function and allows printing the source and destination IP addresses from the socket parameter.
+为了使用Aya说明kprobes，让我们编写一个程序，将eBPF处理程序附加到[`tcp_connect`](https://elixir.bootlin.com/linux/latest/source/net/ipv4/tcp_output.c#L3837)函数，并允许打印来自套接字参数的源和目标IP地址。
 
-## Design
+## 设计
 
-For this demo program, we are going to rely on aya-log to print IP addresses from the BPF program and not going to have any custom BPF maps (besides those created by aya-log).
+对于这个演示程序，我们将依赖aya-log从BPF程序中打印IP地址，并且不会有任何自定义的BPF映射（除了那些由aya-log创建的）。
 
-## eBPF code
-- From the `tcp_connect` signature, we see that `struct sock *sk` is the only function parameter. We will access it from the `ProbeContext` ctx handle.
-- We call `bpf_probe_read_kernel` helper to copy the `struct sock_common	__sk_common` portion of the socket structure.  (For uprobe programs, we would need to call `bpf_probe_read_user` instead.)
-- We match the `skc_family` field, and for `AF_INET` (IPv4) and `AF_INET6` (IPv6) values, extract and print the src and destination addresses using aya-log `info!` macro.
+## eBPF代码
+- 从`tcp_connect`的签名中可以看出，`struct sock *sk`是唯一的函数参数。我们将从`ProbeContext`的ctx句柄中访问它。
+- 我们调用`bpf_probe_read_kernel`辅助函数来复制套接字结构的`struct sock_common __sk_common`部分。（对于uprobes程序，我们需要调用`bpf_probe_read_user`。）
+- 我们匹配`skc_family`字段，并为`AF_INET`（IPv4）和`AF_INET6`（IPv6）值提取和打印源和目标地址，使用aya-log的`info!`宏。
 
-Here's how the eBPF code looks like:
+以下是eBPF代码的样子：
 
 ```rust linenums="1" title="kprobetcp-ebpf/src/main.rs"
 --8<-- "examples/kprobetcp/kprobetcp-ebpf/src/main.rs"
 ```
 
+## 用户空间代码
 
-## Userspace code
+用户空间代码的目的是加载eBPF程序并将其附加到`tcp_connect`函数。
 
-The purpose of the userspace code is to load the eBPF program and attach it to the
-`tcp_connect` function.
-
-Here's how the code looks like:
+以下是代码的样子：
 
 ```rust linenums="1" title="kprobetcp/src/main.rs"
 --8<-- "examples/kprobetcp/kprobetcp/src/main.rs"
 ```
 
-
-## Running the program
+## 运行程序
 
 ```console
 $ RUST_LOG=info cargo xtask run --release

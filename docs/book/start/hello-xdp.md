@@ -1,40 +1,40 @@
 # Hello XDP!
 
-!!! example "Source Code"
+!!! example "源代码"
 
-    Full code for the example in this chapter is available [here](https://github.com/aya-rs/book/tree/main/examples/xdp-hello)
+    本章示例的完整代码可在[此处](https://github.com/aya-rs/book/tree/main/examples/xdp-hello)找到。
 
-## Example Project
+## 示例项目
 
-While there are myriad trace points to attach to and program types to write we should start somewhere simple.
+虽然有许多跟踪点可以附加和编写程序类型，但我们应该从简单的地方开始。
 
-XDP (eXpress Data Path) programs permit our eBPF program to make decisions about packets that have been received on the interface to which our program is attached. To keep things simple, we'll build a very simplistic firewall to permit or deny traffic.
+XDP（eXpress Data Path）程序允许我们的eBPF程序对接收到的数据包做出决策，以决定是否允许数据包通过接口。为了保持简单，我们将构建一个非常简单的防火墙来允许或拒绝流量。
 
-## eBPF Component
+## eBPF组件
 
-### Permit All
+### 允许所有流量
 
-We must first write the eBPF component of our program.
-This is a minimal generated XDP program that permits all traffic.
-The logic for this program is located in `xdp-hello-ebpf/src/main.rs` and currently looks like this:
+我们必须首先编写我们程序的eBPF组件。
+这是一个允许所有流量的最小化生成的XDP程序。
+该程序的逻辑位于`xdp-hello-ebpf/src/main.rs`中，目前看起来是这样的：
 
 ```rust linenums="1" title="xdp-hello-ebpf/src/main.rs"
 --8<-- "examples/xdp-hello/xdp-hello-ebpf/src/main.rs"
 ```
 
-1. `#![no_std]` is required since we cannot use the standard library.
-2. `#![no_main]` is required as we have no main function.
-3. The `#[panic_handler]` is required to keep the compiler happy, although it is never used since we cannot panic.
-4. This indicates that this function is an XDP program.
-5. Our main entry point defers to another function and performs error handling, returning `XDP_ABORTED`, which will drop the packet.
-6. Write a log entry every time a packet is received.
-7. This function returns a `Result` that permits all traffic.
+1. 使用`#![no_std]` 是因为我们不能使用标准库。
+2. 使用`#![no_main]` 是因为我们没有主函数。
+3. `#[panic_handler]` 是为了让编译器满意，尽管它从未使用过，因为我们不能panic。
+4. 这表明这个函数是一个XDP程序。
+5. 我们的主入口点委托给另一个函数并执行错误处理，返回`XDP_ABORTED`，这将丢弃数据包。
+6. 每次接收到数据包时写入日志条目。
+7. 这个函数返回一个允许所有流量的`Result`。
 
-Now we can compile this using `cargo xtask build-ebpf`.
+现在我们可以使用`cargo xtask build-ebpf`来编译它。
 
-### Verifying The Program
+### 验证程序
 
-Let's take a look at the compiled eBPF program:
+让我们看看编译后的eBPF程序：
 
 ```console
 $ llvm-objdump -S target/bpfel-unknown-none/debug/xdp-hello
@@ -92,36 +92,36 @@ Disassembly of section xdp/xdp_hello:
      251:	95 00 00 00 00 00 00 00	exit
 ```
 
-The output was trimmed for brevity.
-We can see an `xdp/xdp_hello` section here.
-And in `<LBB0_2>`, `r0 = 2` sets register `0` to `2`, which is the value of the `XDP_PASS` action.
-`exit` ends the program.
+输出经过了简化以保持简洁。
+我们可以在这里看到一个`xdp/xdp_hello`段。
+在`<LBB0_2>`中，`r0 = 2`将寄存器`0`设置为`2`，这是`XDP_PASS`动作的值。
+`exit`结束程序。
 
-Simple!
+简单吧！
 
-## User-space Component
+## 用户空间组件
 
-Now our eBPF program is complete and compiled, we need a user-space program to load it and attach it to a trace point.
-Fortunately, we have a generated program ready in `xdp-hello/src/main.rs` which is going to do that for us.
+现在我们的eBPF程序已经完成并编译，我们需要一个用户空间程序来加载它并将其附加到一个跟踪点。
+幸运的是，我们在`xdp-hello/src/main.rs`中有一个生成的程序可以为我们完成这项工作。
 
-### Starting Out
+### 开始
 
-Let's look at the details of our generated user-space application:
+让我们看看生成的用户空间应用程序的细节：
 
 ```rust linenums="1" title="xdp-hello/src/main.rs"
 --8<-- "examples/xdp-hello/xdp-hello/src/main.rs"
 ```
 
-1. `tokio` is the async library we're using, which provides our [Ctrl-C handler](https://docs.rs/tokio/latest/tokio/signal/fn.ctrl_c.html). It will come in useful later as we expand the functionality of the initial program:
-2. Here we declare our CLI flags. Just `--iface` for now for passing the interface name
-3. Here's our main entry point
-4. `include_bytes_aligned!()` copies the contents of the BPF ELF object file at the compile time
-5. `Bpf::load()` reads the BPF ELF object file contents from the output of the previous command, creates any maps, performs BTF relocations
-6. We extract the XDP program
-7. And then load it in to the kernel
-8. Finally, we can attach it to an interface
+1. `tokio`是我们使用的异步库，它提供了一个[Ctrl-C处理程序](https://docs.rs/tokio/latest/tokio/signal/fn.ctrl_c.html)。在我们扩展初始程序的功能时，它将派上用场。
+2. 在这里我们声明了CLI标志。现在只有`--iface`用于传递接口名称。
+3. 这是我们的主入口点。
+4. `include_bytes_aligned!()`在编译时复制BPF ELF对象文件的内容。
+5. `Bpf::load()`从上一个命令的输出中读取BPF ELF对象文件的内容，创建任何映射，执行BTF重定位。
+6. 我们提取XDP程序。
+7. 然后将其加载到内核中。
+8. 最后，我们可以将其附加到接口。
 
-Let's try it out!
+让我们试试看！
 
 ```console
 $ cargo xtask run -- -h
@@ -136,15 +136,13 @@ USAGE:
     xdp-hello [OPTIONS]
 
 OPTIONS:
-    -h, --help             Print help information
-    -i, --iface <IFACE>    [default: eth0]
+    -h, --help             打印帮助信息
+    -i, --iface <IFACE>    [默认: eth0]
 ```
 
-!!! note "Interface Name"
+!!! note "接口名称"
 
-    This command assumes the interface is `eth0` by default. If you wish to attach to an interface
-    with another name, use `RUST_LOG=info cargo xtask run -- --iface wlp2s0`, where  `wlp2s0` is
-    your interface.
+    此命令假定接口默认是`eth0`。如果您希望附加到其他名称的接口，请使用`RUST_LOG=info cargo xtask run -- --iface wlp2s0`，其中`wlp2s0`是您的接口。
 
 ```console
 $ RUST_LOG=info cargo xtask run
@@ -156,19 +154,18 @@ $ RUST_LOG=info cargo xtask run
 ^C[2022-12-21T18:03:11Z INFO  xdp_hello] Exiting...
 ```
 
-So everytime a packet was received on the interface, a log was printed!
+因此，每次在接口上接收到数据包时，都会打印一个日志！
 
-!!! bug "Error Loading Program?"
+!!! bug "加载程序时出错？"
 
-    If you get an error loading the program, try changing `XdpFlags::default()` to `XdpFlags::SKB_MODE`
+    如果加载程序时出错，请尝试将`XdpFlags::default()`更改为`XdpFlags::SKB_MODE`。
 
+### eBPF程序的生命周期
 
-### The Lifecycle of an eBPF Program
+程序运行直到按下CTRL+C然后退出。
+退出时，Aya会帮助我们卸载程序。
 
-The program runs until CTRL+C is pressed and then exits.
-On exit, Aya takes care of detaching the program for us.
-
-If you issue the `sudo bpftool prog list` command when `xdp_hello` is running you can verify that it is loaded:
+如果在`xdp_hello`运行时发出`sudo bpftool prog list`命令，您可以验证它是否已加载：
 
 ```console
 958: xdp  name xdp_hello  tag 0137ce4fce70b467  gpl
@@ -177,4 +174,4 @@ If you issue the `sudo bpftool prog list` command when `xdp_hello` is running yo
 	pids xdp-hello(131677)
 ```
 
-Running the command again once `xdp_hello` has exited will show that the program is no longer running.
+再次运行命令，一旦`xdp_hello`退出，将显示程序不再运行。

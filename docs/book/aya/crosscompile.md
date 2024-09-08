@@ -1,59 +1,55 @@
-# Cross-compiling aya-based programs
+# 跨平台编译基于Aya的程序
 
-The instructions below show how to cross compile aya eBPF programs on Macs.
-Cross compiling on other systems is possible too and we're going
-to add instructions to do that soon (PRs welcome!).
+以下说明展示了如何在Mac上跨平台编译Aya eBPF程序。
+在其他系统上进行跨平台编译也是可行的，我们将很快添加相应的说明（欢迎提交PR！）。
 
-# Cross-compiling aya-based programs on Mac
+# 在Mac上跨平台编译基于Aya的程序
 
-Cross compilation should work on both Intel and Apple Silicon Macs.
+跨平台编译在Intel和Apple Silicon Mac上都应该可以工作。
 
-1. Install `rustup` following the instructions on <https://rustup.rs/>
-1. Install the stable and nightly rust toolchains:
+1. 根据<https://rustup.rs/>上的说明安装`rustup`。
+2. 安装稳定版和夜间版的Rust工具链：
 ```bash
 rustup install stable
 rustup toolchain install nightly --component rust-src
 ```
-1. Install the [rustup target](https://doc.rust-lang.org/nightly/rustc/platform-support.html#tier-1-with-host-tools) for your Linux target platform:
+3. 为您的Linux目标平台安装[rustup target](https://doc.rust-lang.org/nightly/rustc/platform-support.html#tier-1-with-host-tools)：
 ```bash
 ARCH=x86_64
 rustup target add ${ARCH}-unknown-linux-musl
 ```
-1. Install LLVM with brew:
+4. 使用brew安装LLVM：
 ```bash
 brew install llvm
 ```
-
-1. Install the musl cross compiler:  
-to cross-compile for only `x86_64` targets (the default in musl-cross):
+5. 安装musl交叉编译器：  
+   仅为`x86_64`目标进行跨编译（musl-cross中的默认设置）：
 ```bash
 brew install FiloSottile/musl-cross/musl-cross
 ```
-to cross-compile for only `aarch64` targets:
+   仅为`aarch64`目标进行跨编译：
 ```bash
 brew install FiloSottile/musl-cross/musl-cross --without-x86_64 --with-aarch64
 ```
-to cross-compile for both `x86_64` and `aarch64` targets:
+   为`x86_64`和`aarch64`目标进行跨编译：
 ```bash
 brew install FiloSottile/musl-cross/musl-cross --with-aarch64
 ```
-See [homebrew-musl-cross](https://github.com/FiloSottile/homebrew-musl-cross)
-for additional platform-specific options.
+   有关其他平台特定选项，请参见[homebrew-musl-cross](https://github.com/FiloSottile/homebrew-musl-cross)。
 
-1. Install bpf-linker. Change the version number in `LLVM_SYS_<version>_PREFIX` to correspond
-to the major version of the [llvm-sys](https://crates.io/crates/llvm-sys) crate:
+6. 安装bpf-linker。将`LLVM_SYS_<version>_PREFIX`中的版本号更改为对应于[llvm-sys](https://crates.io/crates/llvm-sys) crate的主版本号：
 
 ```bash
 LLVM_SYS_180_PREFIX=$(brew --prefix llvm) cargo install bpf-linker --no-default-features
 ```
-1. Build BPF object files:
+7. 构建BPF对象文件：
 ```bash
 cargo xtask build-ebpf --release
 ```
-1. Build the userspace code:
+8. 构建用户空间代码：
 ```bash
 RUSTFLAGS="-Clinker=${ARCH}-linux-musl-ld" cargo build --release --target=${ARCH}-unknown-linux-musl
 ```
-The cross-compiled program  
+跨编译的程序  
 `target/${ARCH}-unknown-linux-musl/release/<program_name>`  
-can be copied to a Linux server or VM and run there.
+可以复制到Linux服务器或虚拟机上运行。

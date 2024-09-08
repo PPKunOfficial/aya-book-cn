@@ -1,9 +1,8 @@
-# Program Lifecycle
+# 程序生命周期
 
-In Aya, an instance of the `Bpf` type manages the lifetime of all the eBPF objects created
-through it.
+在Aya中，一个`Bpf`类型的实例管理通过它创建的所有eBPF对象的生命周期。
 
-Consider the following example:
+请看以下示例：
 
 ```rust
 use aya::Bpf;
@@ -25,7 +24,7 @@ fn main() {
 }
 ```
 
-1. When you call `load` or `load_file`, all the maps referenced by the eBPF code are created and stored inside the returned Bpf instance.
-2. Similarly when you load a program to the kernel, it's stored inside the `Bpf` instance.
-3. When you attach a program, it stays attached until the parent `Bpf` instance gets dropped.
-4. At this point the `bpf` variable has been droppped. Our program and maps are detached/unloaded.
+1. 当您调用`load`或`load_file`时，所有eBPF代码引用的映射都会被创建并存储在返回的Bpf实例中。
+2. 同样，当您将一个程序加载到内核时，它也会被存储在`Bpf`实例中。
+3. 当您附加一个程序时，它会保持附加状态，直到其父`Bpf`实例被删除。
+4. 在这一点上，`bpf`变量已被删除。我们的程序和映射被分离/卸载。

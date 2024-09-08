@@ -1,89 +1,64 @@
 # LSM
 
-!!! example "Source Code"
+!!! example "源代码"
 
-    Full code for the example in this chapter is available [here](https://github.com/aya-rs/book/tree/main/examples/lsm-nice)
-## What is LSM
+    本章示例的完整代码可在[此处](https://github.com/aya-rs/book/tree/main/examples/lsm-nice)找到。
 
-LSM stands for [Linux Security Modules](https://en.wikipedia.org/wiki/Linux_Security_Modules)
-which is a framework which allows developers to write security systems on top
-of the Linux kernel. It's also briefly described in
-[the Linux kernel documentation](https://www.kernel.org/doc/html/latest/security/lsm.html).
+## 什么是LSM
 
-LSM is used by kernel modules or (since kernel 5.7) by eBPF programs. The most
-popular modules that make use of LSM are AppArmor, SELinux, Smack and TOMOYO.
-eBPF LSM programs allow developers to implement the same functionality
-implemented by the modules just mentioned, using eBPF APIs.
+LSM代表[Linux安全模块](https://en.wikipedia.org/wiki/Linux_Security_Modules)，这是一种框架，允许开发人员在Linux内核之上编写安全系统。在[Linux内核文档](https://www.kernel.org/doc/html/latest/security/lsm.html)中也有简要描述。
 
-The central concept behind LSM is **LSM hooks**. LSM hooks are exposed in key
-locations in the kernel, and eBPF programs can attach to them to implement
-custom security policies. Examples of operations that can be policied via hooks
-include:
+LSM由内核模块使用，或者（自内核5.7起）由eBPF程序使用。最受欢迎的使用LSM的模块包括AppArmor、SELinux、Smack和TOMOYO。eBPF LSM程序允许开发人员使用eBPF API实现上述模块所实现的相同功能。
 
-* filesystem operations
-  * opening, creating, moving and removing files
-  * mounting and unmounting filesystems
-* task/process operations
-  * allocating and freeing tasks, changing user and group identify for a task
-* socket operations
-  * creating and binding sockets
-  * receiving and sending messages
+LSM背后的核心概念是**LSM钩子**。LSM钩子在内核的关键位置暴露，eBPF程序可以附加到这些钩子上以实现自定义的安全策略。可以通过钩子进行策略控制的操作示例包括：
 
-Each of those actions has a corresponding LSM hook. Each hook takes a number of
-arguments, which provides context about the program and it's operation in order
-to implement policy decisions. The list of hooks with their arguments can be 
-found in the [lsm_hook_defs.h](https://github.com/torvalds/linux/blob/master/include/linux/lsm_hook_defs.h)
-header.
+* 文件系统操作
+  * 打开、创建、移动和删除文件
+  * 挂载和卸载文件系统
+* 任务/进程操作
+  * 分配和释放任务、更改任务的用户和组标识
+* 套接字操作
+  * 创建和绑定套接字
+  * 接收和发送消息
 
-For example, consider the `task_setnice` hook, which has the following
-definition:
+上述每个操作都有相应的LSM钩子。每个钩子接受多个参数，这些参数提供有关程序及其操作的上下文，以便实施策略决策。带有其参数的钩子列表可以在[lsm_hook_defs.h](https://github.com/torvalds/linux/blob/master/include/linux/lsm_hook_defs.h)头文件中找到。
+
+例如，考虑`task_setnice`钩子，其定义如下：
 
 ```c
 LSM_HOOK(int, 0, task_setnice, struct task_struct *p, int nice)
 ```
 
-The hook is triggered when a nice value is set for any process in the system.
-If you are not familiar with the concept of process niceness, check out
-[this article](https://en.wikipedia.org/wiki/Nice_(Unix)). As you can see from
-the definition, this hook takes the following arguments:
+该钩子在为系统中的任何进程设置nice值时触发。如果您不熟悉进程优先级的概念，请查看[此文章](https://en.wikipedia.org/wiki/Nice_(Unix))。从定义中可以看出，该钩子接受以下参数：
 
-* `p` is the instance of `task_struct` which represents the process on which
-  the nice value is set
-* `nice` is the nice value
+* `p`是`task_struct`的实例，表示设置nice值的进程
+* `nice`是nice值
 
-By attaching to the hook, an eBPF program can decide whether to accept or
-reject the given nice value.
+通过附加到该钩子，eBPF程序可以决定是否接受或拒绝给定的nice值。
 
-In addition to the arguments found in the hook definition, eBPF programs have
-access to one extra argument - `ret` - which is a return value of potential
-previous eBPF LSM programs.
+除了钩子定义中发现的参数外，eBPF程序还可以访问一个额外的参数——`ret`，这是可能的先前eBPF LSM程序的返回值。
 
-## Ensure that BPF LSM is enabled
+## 确保启用了BPF LSM
 
-Before proceeding further and trying to write a BPF LSM program, please make
-sure that:
+在继续编写BPF LSM程序之前，请确保：
 
-* Your kernel version is at least 5.7.
-* BPF LSM is enabled.
+* 您的内核版本至少为5.7。
+* 启用了BPF LSM。
 
-The second point can be checked with:
+可以通过以下方式检查第二点：
 
 ```console
 $ cat /sys/kernel/security/lsm
 capability,lockdown,landlock,yama,apparmor,bpf
 ```
 
-The correct output should contain `bpf`. If it doesn't, BPF LSM has to be
-manually enabled by adding it to kernel config parameters. It can be achieved
-by editing the GRUB config in `/etc/default/grub` and adding the following to
-the kernel parameters:
+正确的输出应包含`bpf`。如果没有，则必须通过将其添加到内核配置参数中手动启用BPF LSM。可以通过编辑`/etc/default/grub`中的GRUB配置并将以下内容添加到内核参数来实现：
 
 ```console
 GRUB_CMDLINE_LINUX="lsm=[YOUR CURRENTLY ENABLED LSMs],bpf"
 ```
 
-Then rebuilding the GRUB configuration with any of the commands listed below
-(each of them might be available or not in different Linux distributions):
+然后使用以下命令之一重建GRUB配置（每个命令可能在不同的Linux发行版中可用或不可用）：
 
 ```console
 # update-grub2
@@ -95,106 +70,91 @@ Then rebuilding the GRUB configuration with any of the commands listed below
 # grub-mkconfig -o /boot/grub/grub.cfg
 ```
 
-And finally, rebooting the system.
+最后，重新启动系统。
 
-## Writing LSM BPF program
+## 编写LSM BPF程序
 
-Let's try to create an LSM eBPF program which which is triggered by
-`task_setnice` hook. The purpose of this program will be denying setting the
-nice value lower than 0 (which means higher priority), for a particular process.
+让我们尝试创建一个由`task_setnice`钩子触发的LSM eBPF程序。该程序的目的是拒绝为特定进程设置低于0的nice值（意味着更高的优先级）。
 
-The `renice` tool can be used to change niceness values:
+可以使用`renice`工具更改niceness值：
 
 ```console
 $ renice [value] -p [pid]
 ```
 
-With our eBPF program, we want to make it impossible to call `renice` for a
-given `pid` with a negative `[value]`.
+使用我们的eBPF程序，我们希望让给定`pid`的`renice`调用使用负`[value]`变得不可能。
 
-eBPF projects come with two parts: eBPF program(s) and the userspace program.
-To make our example simple, we can try to deny a change of a nice value of
-the userspace process which loads the eBPF program.
+eBPF项目由两部分组成：eBPF程序和用户空间程序。为了使我们的示例简单，我们可以尝试拒绝更改加载eBPF程序的用户空间进程的nice值。
 
-The first step is to create a new project:
+第一步是创建一个新项目：
 
 ```console
 $ cargo generate --name lsm-nice -d program_type=lsm -d lsm_hook=task_setnice https://github.com/aya-rs/aya-template
 ```
 
-That command should create a new Aya project with an empty program attaching to
-the `task_setnice` hook. Let's go to its directory:
+该命令应创建一个新的Aya项目，其中包含一个附加到`task_setnice`钩子的空程序。让我们进入其目录：
 
 ```console
 $ cd lsm-nice
 ```
-One of the arguments passed to the `task_setnice` hook is a pointer to a
-[task_struct type](https://elixir.bootlin.com/linux/v5.15.3/source/include/linux/sched.h#L723).
-Therefore we need to generate a binding to `task_struct` with aya-tool.
 
-> If you are not familiar with aya-tool, please refer to
-> [this section](../aya/aya-tool.md).
+传递给`task_setnice`钩子参数之一是指向[task_struct类型](https://elixir.bootlin.com/linux/v5.15.3/source/include/linux/sched.h#L723)的指针。因此，我们需要使用aya-tool生成`task_struct`的绑定。
+
+> 如果您不熟悉aya-tool，请参考[此部分](../aya/aya-tool.md)。
 
 ```console
 $ aya-tool generate task_struct > lsm-nice-ebpf/src/vmlinux.rs
 ```
 
-Now it's time to modify the `lsm-nice-ebpf` project and write an actual program
-there. The full program code should look like this:
+现在是时候修改`lsm-nice-ebpf`项目并在那里编写实际程序了。完整的程序代码应如下所示：
 
 ```rust linenums="1" title="lsm-nice-ebpf/src/main.rs"
 --8<-- "examples/lsm-nice/lsm-nice-ebpf/src/main.rs"
 ```
 
-1. We include the autogenerated binding to `task_struct`:
-1. Then we define a global variable `PID`. We initialize the value to 0, but at
-runtime the userspace side will patch the value with the actual pid we're
-interested in.
-1. Finally we have the program and the logic what to do with nice values.
+1. 我们包含自动生成的`task_struct`绑定：
+2. 然后我们定义一个全局变量`PID`。我们将值初始化为0，但在运行时，用户空间部分将用我们感兴趣的实际pid修补该值。
+3. 最后，我们有程序和关于nice值的处理逻辑。
 
-After that we also need to modify the userspace part. We don't need as much
-work as with the eBPF part, but we need to:
+之后，我们还需要修改用户空间部分。我们不需要像eBPF部分那样多的工作，但我们需要：
 
-1. Get the PID.
-2. Log it.
-3. Write it to the global variable in the eBPF object.
+1. 获取PID。
+2. 记录它。
+3. 将其写入eBPF对象中的全局变量。
 
-The final result should look like:
+最终结果应如下所示：
 
 ```rust linenums="1" title="lsm-nice/src/main.rs"
 --8<-- "examples/lsm-nice/lsm-nice/src/main.rs"
 ```
 
-1. Where we start with getting and logging a PID:
-2. And then we set the global variable:
+1. 我们从获取和记录PID开始：
+2. 然后我们设置全局变量：
 
-After that, we can build and run our project with:
+之后，我们可以使用以下命令构建并运行我们的项目：
 
 ```console
 $ RUST_LOG=info cargo xtask run
 ```
 
-The output should contain our log line showing the PID of the userspace
-process, i.e.:
+输出应包含显示用户空间进程PID的日志行，例如：
 
 ```console
 16:32:30 [INFO] lsm_nice: [lsm-nice/src/main.rs:22] PID: 573354
 ```
 
-Now we can try to change the nice value for that process. Setting a positive
-value (lowering the priority) should still work:
+现在我们可以尝试更改该进程的nice值。设置正值（降低优先级）应仍然有效：
 
 ```console
 $ renice 10 -p 587184
 587184 (process ID) old priority 0, new priority 10
 ```
 
-But setting a negative value should not be allowed:
+但设置负值应不被允许：
 
 ```console
 $ renice -10 -p 587184
 renice: failed to set priority for 587184 (process ID): Operation not permitted
 ```
 
-If doing that resulted in `Operation not permitted`, congratulations, your LSM
-eBPF program works!
+如果这样做导致`Operation not permitted`，恭喜，您的LSM eBPF程序正常工作！

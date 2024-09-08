@@ -1,70 +1,68 @@
 # XDP
 
-!!! example "Source Code"
+!!! example "源代码"
 
-    Full code for the example in this chapter is available [here](https://github.com/aya-rs/book/tree/main/examples/xdp-drop)
+    本章示例的完整代码可在[此处](https://github.com/aya-rs/book/tree/main/examples/xdp-drop)找到。
 
-## What is XDP in eBPF?
+## 什么是eBPF中的XDP？
 
-XDP (eXpress Data Path) is a type of eBPF program that attaches to the network interface.
-It enables filtering, manipulation and refirection of network packets
-as soon as they are received from the network driver,
-even before they enter the Linux kernel networking stack, resulting in low latency and high throughput.
+XDP（eXpress Data Path）是一种eBPF程序，附加到网络接口。
+它使得能够在网络数据包从网络驱动接收时立即进行过滤、操作及重定向，
+甚至在它们进入Linux内核网络栈之前，从而实现低延迟和高吞吐量。
 
-The idea behind XDP is to add an early hook in the `RX` path of the kernel,
-and let a user supplied eBPF program decide the fate of the packet.
-The hook is placed in the NIC driver just after the interrupt processing,
-and before any memory allocation needed by the network stack itself.
+XDP的思想是在内核的`RX`路径中添加一个早期钩子，
+并让用户提供的eBPF程序决定数据包的命运。
+该钩子放置在NIC驱动中，紧接中断处理之后，
+并且在任何网络栈自身所需的内存分配之前。
 
-The XDP program is allowed to edit the packet data and,
-after the XDP program returns, an action code determines what to do with the packet:
+XDP程序允许编辑数据包数据，
+在XDP程序返回后，动作代码决定如何处理数据包：
 
-* `XDP_PASS`: let the packet continue through the network stack
-* `XDP_DROP`: silently drop the packet
-* `XDP_ABORTED`: drop the packet with trace point exception
-* `XDP_TX`: bounce the packet back to the same NIC it arrived on
-* `XDP_REDIRECT`: redirect the packet to another NIC or user space socket via the
-[`AF_XDP`](https://www.kernel.org/doc/html/latest/networking/af_xdp.html) address family
+* `XDP_PASS`: 让数据包继续通过网络栈
+* `XDP_DROP`: 静默丢弃数据包
+* `XDP_ABORTED`: 丢弃数据包并记录异常
+* `XDP_TX`: 将数据包返回到其到达的同一NIC
+* `XDP_REDIRECT`: 通过[`AF_XDP`](https://www.kernel.org/doc/html/latest/networking/af_xdp.html)地址族将数据包重定向到另一个NIC或用户空间套接字
 
 ## AF_XDP
 
-Along with XDP, a new address familiy entered in the Linux kernel, starting at 4.18.
-`AF_XDP`, formerly known as `AF_PACKETv4` (which was never included in the mainline kernel),
-is a raw socket optimized for high performance packet processing and
-allows zero-copy between kernel and applications.
-As the socket can be used for both receiving and transmitting,
-it supports high performance network applications purely in user-space.
+随着XDP的出现，Linux内核在4.18版本中引入了一个新的地址族。
+`AF_XDP`，以前称为`AF_PACKETv4`（从未包含在主线内核中），
+是一种为高性能数据包处理而优化的原始套接字，
+允许在内核和应用程序之间进行零拷贝。
+由于套接字可以用于接收和发送，
+它支持在用户空间中纯粹运行的高性能网络应用程序。
 
-If you want a more extensive explanation about `AF_XDP`,
-you can find it in the [kernel documentation](https://www.kernel.org/doc/html/latest/networking/af_xdp.html).
+如果您想要关于`AF_XDP`的更详细的解释，
+可以在[内核文档](https://www.kernel.org/doc/html/latest/networking/af_xdp.html)中找到。
 
-## XDP operation modes
+## XDP操作模式
 
-You can connect an XDP program to an interface using the following modes:
+您可以使用以下模式将XDP程序连接到接口：
 
-### Generic XDP
+### 通用XDP
 
-* XDP programs are loaded into the kernel as part of the ordinary network path
-* Doesn't need support from the network card driver to function
-* Doesn't provide full performance benefits
-* Easy way to test XDP programs
+* XDP程序作为普通网络路径的一部分加载到内核中
+* 不需要网络卡驱动的支持即可运行
+* 不提供完整的性能优势
+* 测试XDP程序的简单方法
 
-### Native XDP
+### 原生XDP
 
-* XDP programs are loaded by the network card driver as part of its initial receive path
-* Requires support from the network card driver to function
-* Default operation mode
+* XDP程序由网络卡驱动作为其初始接收路径的一部分加载
+* 需要网络卡驱动的支持才能运行
+* 默认操作模式
 
-### Offloaded XDP
+### 卸载XDP
 
-* XDP programs are loaded directly on the NIC, and executed without using the CPU
-* Requires support from the NIC
+* XDP程序直接加载到NIC上，并在不使用CPU的情况下执行
+* 需要NIC的支持
 
-## Driver support for native XDP
+## 驱动支持原生XDP
 
-A list of drivers supporting native XDP can be found in the table below:
+支持原生XDP的驱动的列表可以在下表中找到：
 
-| Vendor            | Driver     | XDP Support |
+| 厂商              | 驱动       | XDP支持版本 |
 | ----------------- | ---------- | ----------- |
 | Amazon            | ena        | >=5.6       |
 | Broadcom          | bnxt_en    | >=4.11      |
@@ -87,36 +85,36 @@ A list of drivers supporting native XDP can be found in the table below:
 | Solarflare        | sfc        | >=5.5       |
 | Texas Instruments | cpsw       | >=5.3       |
 
-You can use the following command to check your interface's network driver name:
-`ethtool -i <interface>`.
+您可以使用以下命令检查接口的网络驱动程序名称：
+`ethtool -i <interface>`。
 
-## Driver support for offloaded XDP
+## 驱动支持卸载XDP
 
-Currently, only the Netronome NFP drivers have support for offloaded XDP.
+目前，仅Netronome NFP驱动支持卸载XDP。
 
-## Example project
+## 示例项目
 
-Now that you have a little more understanding about XDP, let's follow up with a practical example.
-We are going to write a simple XDP Program that drops packets incoming from certain IPs.
+现在您对XDP有了一些了解，让我们继续一个实际的例子。
+我们将编写一个简单的XDP程序，用于丢弃来自某些IP的数据包。
 
-### Setting up the development environment
+### 设置开发环境
 
-Make sure you already have the [prerequisites](https://aya-rs.dev/book/start/development/).
+确保您已经具备[前提条件](https://aya-rs.dev/book/start/development/)。
 
-Since we are writing an XDP program, we will use the XDP template (created with `cargo generate`):
+由于我们正在编写一个XDP程序，我们将使用XDP模板（通过`cargo generate`创建）：
 
 ```
 cargo generate --name simple-xdp-program -d program_type=xdp https://github.com/aya-rs/aya-template
 ```
 
-### Creating the eBPF component
+### 创建eBPF组件
 
-First, we must create the eBPF component for our program,
-in this component, we will decide what to do with the incoming packets.
+首先，我们必须为我们的程序创建eBPF组件，
+在这个组件中，我们将决定如何处理传入的数据包。
 
-Since we want to drop the incoming packets from certain IPs,
-we are going to use the `XDP_DROP` action code whenever the IP is in our blacklist,
-and everything else will be treated with the `XDP_PASS` action code.
+由于我们想要丢弃来自某些IP的传入数据包，
+我们将在IP在我们的黑名单中时使用`XDP_DROP`动作代码，
+对于其他所有情况将使用`XDP_PASS`动作代码。
 
 ```rust
 #![no_std]
@@ -138,18 +136,18 @@ use network_types::{
 };
 ```
 
-We import the necessary dependencies:
+我们导入了必要的依赖项：
 
-* `aya_ebpf`: For XDP actions (`bindings::xdp_action`), the XDP context struct `XdpContext` (`programs:XdpContext`),
-map definitions (for our HashMap) and XDP program macros (`macros::{map, xdp}`)
-* `aya_log_ebpf`: For logging within the eBPF program
-* `core::mem`: For memory manipulation
-* `network_types`: For Ethernet and IP header definitions
+* `aya_ebpf`: 对于XDP动作（`bindings::xdp_action`）、XDP上下文结构`XdpContext`（`programs:XdpContext`），
+映射定义（对于我们的HashMap）和XDP程序宏（`macros::{map, xdp}`）
+* `aya_log_ebpf`: 用于在eBPF程序中进行日志记录
+* `core::mem`: 用于内存操作
+* `network_types`: 用于以太网和IP头的定义
 
-!!! note "Important"
-    Make sure you add the `network_types` dependency in your `Cargo.toml`.
+!!! note "重要"
+    确保在您的`Cargo.toml`中添加`network_types`依赖项。
 
-Here's how the code looks:
+以下是代码的样子：
 
 ```rust
 #[panic_handler]
@@ -158,16 +156,16 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
 }
 ```
 
-An eBPF-compatible panic handler is provided because
-eBPF programs cannot use the default panic behavior.
+提供了一个eBPF兼容的panic处理程序，因为
+eBPF程序不能使用默认的panic行为。
 
 ```rust
 #[map]
 static BLOCKLIST: HashMap<u32, u32> = HashMap::<u32, u32>::with_max_entries(1024, 0);
 ```
 
-Here, we define our blocklist with a `HashMap`,
-which stores integers (u32), with a maximum of 1024 entries.
+在这里，我们定义了一个带有`HashMap`的黑名单，
+它存储整数（u32），最多可存储1024个条目。
 
 ```rust
 #[xdp]
@@ -179,9 +177,9 @@ pub fn xdp_firewall(ctx: XdpContext) -> u32 {
 }
 ```
 
-The `xdp_firewall` function (picked up in user-space) accepts an `XdpContext` and returns a `u32`.
-It delegates the main packet processing logic to the `try_xdp_firewall` function.
-If an error occurs, the function returns `xdp_action::XDP_ABORTED` (which is equal to the u32 `0`).
+`xdp_firewall`函数（在用户空间中获取）接受`XdpContext`并返回一个`u32`。
+它将主要的数据包处理逻辑委托给`try_xdp_firewall`函数。
+如果发生错误，该函数返回`xdp_action::XDP_ABORTED`（等同于u32 `0`）。
 
 ```rust
 #[inline(always)]
@@ -199,11 +197,10 @@ unsafe fn ptr_at<T>(ctx: &XdpContext, offset: usize) -> Result<*const T, ()> {
 }
 ```
 
-Our `ptr_at` function is designed to provide safe access to a generic type `T`
-within an `XdpContext` at a specified offset.
-It performs bounds checking by comparing the desired memory range (`start + offset + len`) against the end of the data (`end`).
-If the access is within bounds, it returns a pointer to the specified type; otherwise,
-it returns an error. We are going to use this function to retrieve data from the `XdpContext`.
+我们的`ptr_at`函数旨在提供安全访问`XdpContext`中指定偏移量的泛型类型`T`。
+它通过将所需的内存范围（`start + offset + len`）与数据的结束（`end`）进行比较来执行边界检查。
+如果访问在边界内，它返回指向指定类型的指针；否则，
+返回错误。我们将使用此函数从`XdpContext`中检索数据。
 
 ```rust
 
@@ -232,24 +229,24 @@ fn try_xdp_firewall(ctx: XdpContext) -> Result<u32, ()> {
 }
 ```
 
-The `block_ip` function checks if a given IP address (address) exists in the blocklist.
+`block_ip`函数检查给定的IP地址是否存在于黑名单中。
 
-As said before, the `try_xdp_firewall` contains the main logic for our firewall.
-We first retrieve the Ethernet header from the `XdpContext` with the `ptr_at` function,
-the header is located at the beginning of the `XdpContext`, therefore we use `0` as an offset.
+如前所述，`try_xdp_firewall`包含我们的防火墙的主要逻辑。
+我们首先使用`ptr_at`函数从`XdpContext`中检索以太网头，
+该头位于`XdpContext`的开头，因此我们使用`0`作为偏移量。
 
-If the packet is not IPv4 (`ether_type` check), the function returns `xdp_action::XDP_PASS` and
-allows the packet to pass through the network stack.
+如果数据包不是IPv4（`ether_type`检查），该函数返回`xdp_action::XDP_PASS`并
+允许数据包通过网络栈。
 
-`ipv4hdr` is used to retrieve the IPv4 header, `source` is used to store the source IP address from the IPv4 header.
-We then compare the IP address with those that are in our blocklist using the `block_ip` function we created earlier.
-If `block_ip` matches, meaning that the IP is in the blocklist, we use the `XDP_DROP` action code so that it doesn't
-get through the network stack, otherwise we let it pass with the `XDP_PASS` action code.
+`ipv4hdr`用于检索IPv4头，`source`用于存储IPv4头中的源IP地址。
+然后，我们使用之前创建的`block_ip`函数将IP地址与黑名单中的IP进行比较。
+如果`block_ip`匹配，意味着IP在黑名单中，我们使用`XDP_DROP`动作代码以便它不会
+通过网络栈，否则我们使用`XDP_PASS`动作代码让它通过。
 
-Lastly, we log the activity, `SRC` is the source IP address and `ACTION`
-is the action code that has been used on it. We then return `Ok(action)` as a result.
+最后，我们记录活动，`SRC`是源IP地址，`ACTION`
+是对其使用的动作代码。然后返回`Ok(action)`作为结果。
 
-The full code:
+完整代码：
 
 ```rust
 #![no_std]
@@ -325,32 +322,27 @@ fn try_xdp_firewall(ctx: XdpContext) -> Result<u32, ()> {
 }
 ```
 
-### Populating our map from user-space
+### 从用户空间填充我们的映射
 
-In order to add the addresses to block, we first need to get a reference to the `BLOCKLIST` map.
+为了添加要阻止的地址，我们首先需要获取到`BLOCKLIST`映射的引用。
 
-Once we have it, it's simply a case of calling `ip_blocklist.insert()`
-to insert the ips into the blocklist.
+一旦我们拥有它，只需调用`ip_blocklist.insert()`即可
+将IP插入到黑名单中。
 
-We'll use the `IPv4Addr` type to represent our IP address as
-it's human-readable and can be easily converted to a u32.
+我们将使用`IPv4Addr`类型来表示我们的IP地址，因为
+它是易读的，可以轻松地转换为u32。
 
-We'll block all traffic originating from `1.1.1.1` in this example.
+在这个例子中，我们将阻止所有来自`1.1.1.1`的流量。
 
-!!! note "Endianness"
+!!! note "字节序"
 
-    IP addresses are always encoded in network byte order (big endian) within
-    packets. In our eBPF program, before checking the blocklist, we convert them
-    to host endian using `u32::from_be`. Therefore it's correct to write our IP
-    addresses in host endian format from userspace.
+    IP地址始终在数据包中以网络字节顺序（大端）编码。在我们的eBPF程序中，在检查黑名单之前，我们使用`u32::from_be`将它们转换为主机字节序。因此，从用户空间以主机字节序格式编写我们的IP地址是正确的。
 
-    The other approach would work too: we could convert IPs to network endian
-    when inserting from userspace, and then we wouldn't need to convert when
-    indexing from the eBPF program.
+    另一种方法也可以：我们可以在从用户空间插入时将IP转换为网络字节序，然后在从eBPF程序中索引时就不需要转换了。
 
-Let's begin with writing the user-space code:
+让我们开始编写用户空间代码：
 
-#### Importing dependencies
+#### 导入依赖项
 
 ```rust
 use anyhow::Context;
@@ -367,22 +359,21 @@ use std::net::Ipv4Addr;
 use tokio::signal;
 ```
 
-* `anyhow::Context`: Provides additional context for error handling
-* `aya`: Provides the Bpf structure and related functions for loading eBPF programs,
-as well as the XDP program and its flags (`aya::programs::{Xdp, XdpFlags}`)
-* `aya_log::EbpfLogger`: For logging within the eBPF program
-* `clap::Parser`: Provides argument parsing
-* `log::{info, warn}`: The [logging library](https://docs.rs/log/latest/log/index.html)
-we use for informational and warning messages
-* `std::net::Ipv4Addr`: A struct to work with IPv4 addresses
-* `tokio::signal`: For handling signals asynchronously, see [this link](https://docs.rs/tokio/latest/tokio/signal/) for more information
+* `anyhow::Context`: 为错误处理提供附加的上下文
+* `aya`: 提供用于加载eBPF程序的Bpf结构和相关函数，
+以及XDP程序及其标志（`aya::programs::{Xdp, XdpFlags}`）
+* `aya_log::EbpfLogger`: 用于在eBPF程序中进行日志记录
+* `clap::Parser`: 提供参数解析
+* `log::{info, warn}`: 我们用于信息和警告消息的[日志库](https://docs.rs/log/latest/log/index.html)
+* `std::net::Ipv4Addr`: 用于处理IPv4地址的结构
+* `tokio::signal`: 用于异步处理信号，更多信息请参见[此链接](https://docs.rs/tokio/latest/tokio/signal/)
 
 !!! note
-    `aya::Bpf` is deprecated since version `0.13.0` and `aya_log:BpfLogger` since `0.2.1`.
-    Use [`aya::Ebpf`](https://docs.aya-rs.dev/aya/struct.ebpf) and
-    [`aya_log:EbpfLogger`](https://docs.aya-rs.dev/aya_log/struct.ebpflogger) instead if you are using the more recent versions.
+    `aya::Bpf`自版本`0.13.0`起被弃用，`aya_log:BpfLogger`自版本`0.2.1`起被弃用。
+    如果您使用更高版本，请使用[`aya::Ebpf`](https://docs.aya-rs.dev/aya/struct.ebpf)和
+    [`aya_log:EbpfLogger`](https://docs.aya-rs.dev/aya_log/struct.ebpflogger)代替。
 
-#### Defining command-line arguments
+#### 定义命令行参数
 
 ```rust
 #[derive(Debug, Parser)]
@@ -392,10 +383,10 @@ struct Opt {
 }
 ```
 
-A simple struct is defined for command-line parsing using [clap's derive feature](https://docs.rs/clap/latest/clap/_derive/index.html),
-with the optional argument `iface` to provide our network interface name.
+使用[clap的派生功能](https://docs.rs/clap/latest/clap/_derive/index.html)定义了一个用于命令行解析的简单结构，
+其中可选参数`iface`用于提供我们的网络接口名称。
 
-#### Main function
+#### 主函数
 
 ```rust
 #[tokio::main]
@@ -436,38 +427,37 @@ async fn main() -> Result<(), anyhow::Error> {
 }
 ```
 
-##### Parsing command-line arguments
+##### 解析命令行参数
 
-Inside the `main` function, we first parse the command-line arguments,
-using [`Opt::parse()`](https://docs.rs/clap/latest/clap/trait.Parser.html#method.parse) and the struct defined earlier.
+在`main`函数中，我们首先使用[`Opt::parse()`](https://docs.rs/clap/latest/clap/trait.Parser.html#method.parse)和之前定义的结构解析命令行参数。
 
-##### Initializing environment logging
+##### 初始化环境日志
 
-Logging is initialized using [`env_logger::init()`](https://docs.rs/env_logger/latest/env_logger/fn.init.html),
-we will make use of the environment logger later in our code.
+使用[`env_logger::init()`](https://docs.rs/env_logger/latest/env_logger/fn.init.html)初始化日志，
+稍后我们将在代码中使用环境日志。
 
-##### Loading the eBPF program
+##### 加载eBPF程序
 
-The eBPF program is loaded using `Ebpf::load()`, choosing the debug or
-release version based on the build configuration (`debug_assertions`).
+使用`Ebpf::load()`加载eBPF程序，根据构建配置选择`debug`或
+`release`版本（`debug_assertions`）。
 
-##### Loading and attaching our XDP
+##### 加载和附加我们的XDP
 
-The XDP program named `xdp_firewall` is retrieved from the eBPF program
- we defined earlier using `bpf.program_mut()`.
- The XDP program is then loaded and attached to our network interface.
+从我们之前定义的eBPF程序中检索名为`xdp_firewall`的XDP程序
+ 使用`bpf.program_mut()`。
+ 然后加载XDP程序并将其附加到我们的网络接口。
 
-##### Setting up the IP blocklist
+##### 设置IP黑名单
 
-The IP blocklist (`BLOCKLIST` map) is loaded from the eBPF program and converted to a `HashMap`.
-The IP `1.1.1.1` is added to the blocklist.
+从eBPF程序加载IP黑名单（`BLOCKLIST`映射）并转换为`HashMap`。
+将IP `1.1.1.1`添加到黑名单中。
 
-##### Waiting for the exit signal
+##### 等待退出信号
 
-The program awais the `CTRL+C` signal asynchronously using `signal::ctrl_c().await`,
-once received, it logs an exit message and returns `Ok(())`.
+程序使用`signal::ctrl_c().await`异步等待`CTRL+C`信号，
+一旦收到信号，它会记录退出消息并返回`Ok(())`。
 
-#### Full user-space code
+#### 完整的用户空间代码
 
 ```rust
 use anyhow::Context;
@@ -527,8 +517,8 @@ async fn main() -> Result<(), anyhow::Error> {
 }
 ```
 
-### Running our program!
+### 运行我们的程序！
 
-Now that we have all the pieces for our eBPF program, we can run it using: `RUST_LOG=info cargo xtask run`
-or `RUST_LOG=info cargo xtask run -- --iface <interface>` if you want to provide another network interface name,
-note that you can also use `cargo xtask run` without the rest, but you won't get any logging.
+现在我们已经拥有了eBPF程序的所有组件，可以使用以下命令运行它：`RUST_LOG=info cargo xtask run`
+或`RUST_LOG=info cargo xtask run -- --iface <interface>`如果您想提供另一个网络接口名称，
+请注意您也可以不带其余部分使用`cargo xtask run`，但不会有任何日志记录。

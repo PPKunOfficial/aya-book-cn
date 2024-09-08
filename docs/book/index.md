@@ -1,77 +1,73 @@
-# Getting Started
+# 解析数据包
 
-This getting started guide will help you use the Rust
-Programming Language and Aya library to build extended Berkley Packet Filter (eBPF)
-programs.
+在上一章中，我们的XDP应用程序运行直到按下Ctrl-C，并允许所有流量。每次接收到数据包时，eBPF程序会记录字符串`"received a packet"`。在本章中，我们将展示如何解析数据包。
 
-## Who Aya Is For
+虽然我们可以深入解析到L7，但我们将把示例限制在L3，并且为了简化，只处理IPv4。
 
-Rust is proving to be a popular systems programming language because of its
-safety features and excellent C interoperability. The safety features are less
-important in the context of eBPF as programs often need to read kernel memory, which
-is considered unsafe. However, what Rust combined with Aya does offer is a fast and
-efficient development experience:
+!!! example "源代码"
 
-- Cargo for project scaffolding, build, test and debugging
-- Generation of Rust bindings to Kernel Headers with Compile-Once, Run-Everywhere (CO-RE) support
-- Easy code sharing between user-space and eBPF programs
-- Fast compile times
-- No runtime dependency on LLVM, BCC or libbpf
+    本章示例的完整代码可在[此处](https://github.com/aya-rs/book/tree/main/examples/xdp-log)找到。
 
-## Scope
+## 使用网络类型
 
-The goals of this guide are:
+我们将记录传入数据包的源IP地址。因此，我们需要：
 
-* Get developers up to speed with eBPF Rust development. i.e. How to set
-  up a development environment.
+* 读取以太网头以确定是否处理IPv4数据包，否则终止解析。
+* 从IPv4头读取源IP地址。
 
-* Share *current* best practices about using Rust for eBPF
+我们可以查阅这些协议的规范并手动解析，但我们将使用[network-types](https://crates.io/crates/network-types) crate，它提供了许多常见互联网协议的便捷类型定义。
 
+让我们通过在`xdp-log-ebpf/Cargo.toml`中添加对`network-types`的依赖，将其添加到我们的eBPF crate中：
 
-## Who This Guide is For
+=== "xdp-log-ebpf/Cargo.toml"
 
-This guide caters towards people with either some eBPF or some Rust background. For those without any prior knowledge we suggest you read the "Assumptions and Prerequisites" section first. You can check out the "Other Resources" section to find resources on topics you might want to read up on.
+    ```toml linenums="1"
+    --8<-- "examples/xdp-log/xdp-log-ebpf/Cargo.toml"
+    ```
 
-### Assumptions and Prerequisites
+## 从上下文获取数据包数据
 
-* You are comfortable using the Rust Programming Language, and have written,
-  run, and debugged Rust applications on a desktop environment. You should also
-  be familiar with the idioms of the [2021 edition] as this guide targets
-  Rust 2021.
+`XdpContext`包含我们将使用的两个字段：`data`和`data_end`，它们分别是指向数据包开始和结束的指针。
 
-[2021 edition]: https://doc.rust-lang.org/edition-guide/
+为了访问数据包中的数据并确保以使eBPF验证器满意的方式进行，我们将引入一个名为`ptr_at`的辅助函数。该函数确保在访问任何数据包数据之前，我们插入验证器所需的边界检查。
 
-* You are familiar with the core concepts of eBPF
+最后，为了访问以太网和IPv4头的各个字段，我们将使用memoffset crate，让我们在`xdp-log-ebpf/Cargo.toml`中为其添加依赖。
 
-### Other Resources
+!!! tip "使用`offset_of!`读取字段"
 
-If you are unfamiliar with anything mentioned above or if you want more information about a specific topic mentioned in this guide you might find some of these resources helpful.
+    由于堆栈空间有限，使用`offset_of!`宏读取结构体中的单个字段比读取整个结构体并通过名称访问字段更节省内存。
 
-| Topic        | Resource | Description |
-|--------------|----------|-------------|
-| Rust         | [Rust Book](https://doc.rust-lang.org/book/) | If you are not yet comfortable with Rust, we highly suggest reading this book. |
-| eBPF         | [Cilium BPF and XDP Reference Guide](https://docs.cilium.io/en/stable/bpf/) | If you are not yet comfortable with eBPF, this guide is excellent. |
+生成的代码如下所示：
 
-## How to Use This Guide
+```rust linenums="1" title="xdp-log-ebpf/src/main.rs"
+--8<-- "examples/xdp-log/xdp-log-ebpf/src/main.rs"
+```
 
-This guide generally assumes that you’re reading it front-to-back. Later
-chapters build on concepts in earlier chapters, and earlier chapters may
-not dig into details on a topic, revisiting the topic in a later chapter.
+1. 在这里我们定义`ptr_at`以确保数据包访问总是进行边界检查。
+2. 使用`ptr_at`读取我们的以太网头。
+3. 在这里我们记录IP和端口。
 
-## eBPF Program Constraints
+不要忘记重新构建您的eBPF程序！
 
-The eBPF Virtual Machine, where our eBPF programs will be run, is a constrained runtime environment:
+## 用户空间组件
 
-- There is only 512 bytes of stack (or 256 bytes if we are using tail calls).
-- There is no access to heap space and data must instead be written to maps.
+我们的用户空间代码与上一章没有太大区别，但为了参考，以下是代码：
 
-Even applications written in C are restricted to a subset of language features, and we have similar
-constraints in Rust:
+```rust linenums="1" title="xdp-log/src/main.rs"
+--8<-- "examples/xdp-log/xdp-log/src/main.rs"
+```
 
-- We may not use the standard library. We use `core` instead.
-- `core::fmt` may not be used and neither can traits that rely on it, for example `Display` and `Debug`
-- As there is no heap, we cannot use `alloc` or `collections`.
-- We must not `panic` as the eBPF VM does not support stack unwinding, or the `abort` instruction.
-- There is no `main` function
+## 运行程序
 
-Alongside this, a lot of the code that we write is `unsafe`, as we are reading directly from kernel memory.
+与之前一样，可以通过提供接口名称作为参数来覆盖接口，例如，`RUST_LOG=info cargo xtask run -- --iface wlp2s0`。
+
+```console
+$ RUST_LOG=info cargo xtask run
+[2022-12-22T11:32:21Z INFO  xdp_log] SRC IP: 172.52.22.104, SRC PORT: 443
+[2022-12-22T11:32:21Z INFO  xdp_log] SRC IP: 172.52.22.104, SRC PORT: 443
+[2022-12-22T11:32:21Z INFO  xdp_log] SRC IP: 172.52.22.104, SRC PORT: 443
+[2022-12-22T11:32:21Z INFO  xdp_log] SRC IP: 172.52.22.104, SRC PORT: 443
+[2022-12-22T11:32:21Z INFO  xdp_log] SRC IP: 234.130.159.162, SRC PORT: 443
+```
+
+每次接收到数据包时，程序会记录其源IP地址和端口。

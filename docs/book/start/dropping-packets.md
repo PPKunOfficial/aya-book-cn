@@ -1,73 +1,56 @@
-# Dropping Packets
+# 丢弃数据包
 
-In the previous chapter our XDP program just logged traffic. In this chapter
-we're going to extend it to allow the dropping of traffic.
+在上一章中，我们的XDP程序只是记录了流量。在本章中，我们将扩展它以允许丢弃流量。
 
-!!! example "Source Code"
+!!! example "源代码"
 
-    Full code for the example in this chapter is available [here](https://github.com/aya-rs/book/tree/main/examples/xdp-drop)
+    本章示例的完整代码可在[此处](https://github.com/aya-rs/book/tree/main/examples/xdp-drop)找到。
 
-## Design
+## 设计
 
-In order for our program to drop packets, we're going to need a list of IP
-addresses to drop. Since we want to be able to lookup them up efficiently, we're
-going to use a
-[`HashMap`](https://docs.rs/aya/latest/aya/maps/struct.HashMap.html) to hold
-them.
+为了使我们的程序能够丢弃数据包，我们需要一个IP地址列表来进行丢弃。由于我们希望能够高效地查找这些地址，我们将使用[`HashMap`](https://docs.rs/aya/latest/aya/maps/struct.HashMap.html)来存储它们。
 
-We're going to:
+我们将：
 
-- Create a `HashMap` in our eBPF program that will act as a blocklist
-- Check the IP address from the packet against the `HashMap` to make a policy
-  decision (pass or drop)
-- Add entries to the blocklist from userspace
+- 在我们的eBPF程序中创建一个`HashMap`作为阻止列表
+- 根据`HashMap`检查数据包的IP地址以做出策略决定（通过或丢弃）
+- 从用户空间添加条目到阻止列表
 
-## Dropping packets in eBPF
+## 在eBPF中丢弃数据包
 
-We will create a new map called `BLOCKLIST` in our eBPF code. In order to make
-the policy decision, we will need to lookup the source IP address in our
-`HashMap`. If it exists we drop the packet, if it does not, we allow it. We'll
-keep this logic in a function called `block_ip`.
+我们将在eBPF代码中创建一个名为`BLOCKLIST`的新映射。为了做出策略决定，我们需要在`HashMap`中查找源IP地址。如果存在，我们就丢弃数据包；如果不存在，我们允许它。我们将在一个名为`block_ip`的函数中保留这个逻辑。
 
-Here's what the code looks like now:
+以下是代码的样子：
 
 ```rust linenums="1" title="xdp-drop-ebpf/src/main.rs"
 --8<-- "examples/xdp-drop/xdp-drop-ebpf/src/main.rs"
 ```
 
-1. Create our map
-2. Check if we should allow or deny our packet
-3. Return the correct action
+1. 创建我们的映射
+2. 检查我们是否应该允许或拒绝我们的数据包
+3. 返回正确的操作
 
-## Populating our map from userspace
+## 从用户空间填充我们的映射
 
-In order to add the addresses to block, we first need to get a reference to the
-`BLOCKLIST` map. Once we have it, it's simply a case of calling
-`blocklist.insert()`. We'll use the `IPv4Addr` type to represent our IP address
-as it's human-readable and can be easily converted to a `u32`. We'll block all
-traffic originating from `1.1.1.1` in this example.
+为了添加要阻止的地址，我们首先需要获取对`BLOCKLIST`映射的引用。一旦我们得到它，只需调用`blocklist.insert()`即可。我们将使用`IPv4Addr`类型来表示我们的IP地址，因为它是人类可读的，并且可以轻松转换为`u32`。在这个示例中，我们将阻止所有来自`1.1.1.1`的流量。
 
-!!! note "Endianness"
+!!! note "字节序"
 
-    IP addresses are always encoded in network byte order (big endian) within
-    packets. In our eBPF program, before checking the blocklist, we convert them
-    to host endian using `u32::from_be`. Therefore it's correct to write our IP
-    addresses in host endian format from userspace.
+    在数据包中，IP地址总是以网络字节序（大端）编码。在我们的eBPF程序中，在检查阻止列表之前，我们使用`u32::from_be`将它们转换为主机字节序。因此，从用户空间以主机字节序格式编写我们的IP地址是正确的。
 
-    The other approach would work too: we could convert IPs to network endian
-    when inserting from userspace, and then we wouldn't need to convert when
-    indexing from the eBPF program.
+    另一种方法也可以工作：我们可以在从用户空间插入时将IP转换为网络字节序，这样在eBPF程序中进行索引时就不需要转换。
 
-Here's how the userspace code looks:
+以下是用户空间代码的样子：
 
 ```rust linenums="1" title="xdp-drop/src/main.rs"
 --8<-- "examples/xdp-drop/xdp-drop/src/main.rs"
 ```
 
-1. Get a reference to the map
-2. Create an IPv4Addr
-3. Write this to our map
-## Running the program
+1. 获取对映射的引用
+2. 创建一个IPv4Addr
+3. 将此写入我们的映射
+
+## 运行程序
 
 ```console
 $ RUST_LOG=info cargo xtask run
@@ -81,3 +64,5 @@ $ RUST_LOG=info cargo xtask run
 [2022-10-04T12:46:05Z INFO  xdp_drop] SRC: 1.1.1.1, ACTION: 1
 [2022-10-04T12:46:05Z INFO  xdp_drop] SRC: 140.82.121.6, ACTION: 2
 ```
+
+在此输出中，`ACTION: 1`表示数据包被丢弃，而`ACTION: 2`表示数据包被允许通过。

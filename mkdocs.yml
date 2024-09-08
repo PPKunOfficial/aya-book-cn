@@ -1,6 +1,6 @@
 site_name: Aya
 repo_url: https://github.com/aya-rs/aya
-site_url: https://aya-rs.dev
+site_url: https://aya.114517.xyz
 edit_uri: ../book/edit/main/docs
 extra_css:
   - stylesheets/extra.css
@@ -47,7 +47,7 @@ markdown_extensions:
   - admonition
   - attr_list
   - pymdownx.highlight:
-        anchor_linenums: true
+      anchor_linenums: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.superfences
@@ -58,35 +58,35 @@ markdown_extensions:
 
 nav:
   - Home:
-    - index.md
+      - index.md
   - Getting Started:
-    - book/index.md
-    - Development Environment: book/start/development.md
-    - A Simple XDP Program:
-      - book/start/index.md
-      - Hello XDP!: book/start/hello-xdp.md
-      - Parsing packets: book/start/parsing-packets.md
-      - Dropping Packets: book/start/dropping-packets.md
-    - Working With Aya:
-      - book/aya/index.md
-      - Program Lifecycle: book/aya/lifecycle.md 
-      - Reading Values From A Context: book/aya/context.md
-      - Using aya-tool: book/aya/aya-tool.md
-      - Using aya-log: book/aya/aya-log.md
-      - Cross-compilation: book/aya/crosscompile.md
-    - Program Types:
-      - book/programs/index.md
-      - Probes: book/programs/probes.md
-      - Tracepoints: book/programs/tracepoints.md
-      - Socket Programs: book/programs/sockets.md
-      - Classifiers: book/programs/classifiers.md
-      - Cgroups: book/programs/cgroups.md
-      - Cgroup SKB: book/programs/cgroup-skb.md
-      - XDP: book/programs/xdp.md
-      - LSM: book/programs/lsm.md
+      - book/index.md
+      - Development Environment: book/start/development.md
+      - A Simple XDP Program:
+          - book/start/index.md
+          - Hello XDP!: book/start/hello-xdp.md
+          - Parsing packets: book/start/parsing-packets.md
+          - Dropping Packets: book/start/dropping-packets.md
+      - Working With Aya:
+          - book/aya/index.md
+          - Program Lifecycle: book/aya/lifecycle.md
+          - Reading Values From A Context: book/aya/context.md
+          - Using aya-tool: book/aya/aya-tool.md
+          - Using aya-log: book/aya/aya-log.md
+          - Cross-compilation: book/aya/crosscompile.md
+      - Program Types:
+          - book/programs/index.md
+          - Probes: book/programs/probes.md
+          - Tracepoints: book/programs/tracepoints.md
+          - Socket Programs: book/programs/sockets.md
+          - Classifiers: book/programs/classifiers.md
+          - Cgroups: book/programs/cgroups.md
+          - Cgroup SKB: book/programs/cgroup-skb.md
+          - XDP: book/programs/xdp.md
+          - LSM: book/programs/lsm.md
   - Community:
-    - community/index.md
-    - Code of Conduct: community/code_of_conduct.md
+      - community/index.md
+      - Code of Conduct: community/code_of_conduct.md
 plugins:
   - search
 

@@ -1,72 +1,57 @@
-# Development Environment
+# 开发环境
 
-## Prerequisites
+## 先决条件
 
-Before getting started you will need the Rust stable and nightly toolchains
-installed on your system.  This is easily achieved with
-[`rustup`](https://rustup.rs):
+在开始之前，您需要在系统上安装Rust的稳定版和夜间版工具链。这可以通过[`rustup`](https://rustup.rs)轻松实现：
 
 ```console
 rustup install stable
 rustup toolchain install nightly --component rust-src
 ```
 
-Once you have the Rust toolchains installed, you must also install `bpf-linker`.
-The linker depends on LLVM, and it can be built against the version shipped with
-the rust toolchain if you are running **on a linux x86_64 system** with:
+安装完Rust工具链后，还需要安装`bpf-linker`。该链接器依赖于LLVM，如果您在**Linux x86_64系统**上运行，可以使用以下命令构建：
 
 ```console
 cargo install bpf-linker
 ```
 
-If you are running **macos, or linux on any other architecture**, you need to
-install the newest stable version of LLVM first (for example, with `brew install llvm`),
-then install the linker with:
+如果您使用的是**macOS或其他架构的Linux**，则需要先安装最新的稳定版LLVM（例如，通过`brew install llvm`），然后使用以下命令安装链接器：
 
 ```console
 LLVM_SYS_180_PREFIX=$(brew --prefix llvm) cargo install --no-default-features bpf-linker
 ```
 
-To generate the scaffolding for your project, you're going to need
-`cargo-generate`, which you can install with:
+要为您的项目生成脚手架，您需要安装`cargo-generate`，可以通过以下命令安装：
 
 ```console
 cargo install cargo-generate
 ```
 
-And finally to generate bindings for kernel data structures, you must install
-`bpftool`, either from your distribution or building it from
-[source](https://github.com/libbpf/bpftool).
+最后，为生成内核数据结构的绑定，您必须安装`bpftool`，可以从您的发行版获取，或者从[源代码](https://github.com/libbpf/bpftool)构建。
 
-!!! bug "Running on Ubuntu 20.04 LTS (Focal)?"
+!!! bug "在Ubuntu 20.04 LTS (Focal)上运行？"
 
-	If you're running on Ubuntu 20.04, there is a bug with bpftool and the
-	default kernel installed by the distribution. To avoid running into it, you
-	can install a newer bpftool version that does not include the bug with:
+    如果您在Ubuntu 20.04上运行，bpftool和发行版默认安装的内核存在一个bug。为了避免遇到这个问题，您可以安装不包含该bug的更新版本bpftool：
 
-	```console
-	sudo apt install linux-tools-5.8.0-63-generic
-	export PATH=/usr/lib/linux-tools/5.8.0-63-generic:$PATH
-	```
+    ```console
+    sudo apt install linux-tools-5.8.0-63-generic
+    export PATH=/usr/lib/linux-tools/5.8.0-63-generic:$PATH
+    ```
 
-## Starting A New Project
+## 开始一个新项目
 
-To start a new project, you can use `cargo-generate`:
+要开始一个新项目，可以使用`cargo-generate`：
 
 ```console
 cargo generate https://github.com/aya-rs/aya-template
 ```
 
-This will prompt you for a project name - we'll be using `myapp` in this
-example. It will also prompt you for a program type and possibly other options
-depending on the chosen type (for example, the attach direction for network
-classifiers).
+这将提示您输入项目名称——在本示例中，我们将使用`myapp`。它还会提示您选择一个程序类型，以及可能根据选择的类型提供其他选项（例如，网络分类器的附加方向）。
 
-If you prefer, you can set template options directly from the command line, eg:
+如果您愿意，也可以直接在命令行中设置模板选项，例如：
 
 ```console
 cargo generate --name myapp -d program_type=xdp https://github.com/aya-rs/aya-template
 ```
 
-See [the cargo-generate.toml file (in the aya-template repository)](https://github.com/aya-rs/aya-template/blob/main/cargo-generate.toml)
-for the full list of available options.
+有关可用选项的完整列表，请参见[aya-template存储库中的cargo-generate.toml文件](https://github.com/aya-rs/aya-template/blob/main/cargo-generate.toml)。
