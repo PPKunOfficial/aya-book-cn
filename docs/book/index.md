@@ -1,73 +1,63 @@
-# 解析数据包
+# 入门指南
 
-在上一章中，我们的XDP应用程序运行直到按下Ctrl-C，并允许所有流量。每次接收到数据包时，eBPF程序会记录字符串`"received a packet"`。在本章中，我们将展示如何解析数据包。
+本入门指南将帮助您使用Rust编程语言和Aya库来构建扩展的Berkley数据包过滤器（eBPF）程序。
 
-虽然我们可以深入解析到L7，但我们将把示例限制在L3，并且为了简化，只处理IPv4。
+## Aya的受众
 
-!!! example "源代码"
+Rust因其安全特性和优秀的C语言互操作性而成为流行的系统编程语言。在eBPF的上下文中，安全特性的重要性较低，因为程序通常需要读取内核内存，这被认为是不安全的。然而，Rust与Aya结合提供了一种快速高效的开发体验：
 
-    本章示例的完整代码可在[此处](https://github.com/aya-rs/book/tree/main/examples/xdp-log)找到。
+- 使用Cargo进行项目脚手架、构建、测试和调试
+- 生成带有编译一次、运行到处（CO-RE）支持的内核头文件的Rust绑定
+- 简化用户空间和eBPF程序之间的代码共享
+- 快速编译时间
+- 无需在运行时依赖LLVM、BCC或libbpf
 
-## 使用网络类型
+## 范围
 
-我们将记录传入数据包的源IP地址。因此，我们需要：
+本指南的目标是：
 
-* 读取以太网头以确定是否处理IPv4数据包，否则终止解析。
-* 从IPv4头读取源IP地址。
+* 让开发者快速掌握eBPF Rust开发，即如何设置开发环境。
 
-我们可以查阅这些协议的规范并手动解析，但我们将使用[network-types](https://crates.io/crates/network-types) crate，它提供了许多常见互联网协议的便捷类型定义。
+* 分享关于使用Rust进行eBPF开发的*当前*最佳实践
 
-让我们通过在`xdp-log-ebpf/Cargo.toml`中添加对`network-types`的依赖，将其添加到我们的eBPF crate中：
+## 本指南适合谁
 
-=== "xdp-log-ebpf/Cargo.toml"
+本指南适合具有一定eBPF或Rust背景的人。对于没有任何先验知识的人，我们建议您首先阅读“假设和先决条件”部分。您可以查看“其他资源”部分，以找到可能需要了解的主题资源。
 
-    ```toml linenums="1"
-    --8<-- "examples/xdp-log/xdp-log-ebpf/Cargo.toml"
-    ```
+### 假设和先决条件
 
-## 从上下文获取数据包数据
+* 您已熟悉Rust编程语言，并在桌面环境中编写、运行和调试过Rust应用程序。您还应该熟悉[2021版]的惯用法，因为本指南面向Rust 2021。
 
-`XdpContext`包含我们将使用的两个字段：`data`和`data_end`，它们分别是指向数据包开始和结束的指针。
+[2021版]: https://doc.rust-lang.org/edition-guide/
 
-为了访问数据包中的数据并确保以使eBPF验证器满意的方式进行，我们将引入一个名为`ptr_at`的辅助函数。该函数确保在访问任何数据包数据之前，我们插入验证器所需的边界检查。
+* 您熟悉eBPF的核心概念。
 
-最后，为了访问以太网和IPv4头的各个字段，我们将使用memoffset crate，让我们在`xdp-log-ebpf/Cargo.toml`中为其添加依赖。
+### 其他资源
 
-!!! tip "使用`offset_of!`读取字段"
+如果您对上述任何内容不熟悉，或想要了解本指南中提到的某个特定主题的更多信息，以下资源可能对您有帮助。
 
-    由于堆栈空间有限，使用`offset_of!`宏读取结构体中的单个字段比读取整个结构体并通过名称访问字段更节省内存。
+| 主题 | 资源                                                                        | 描述                                           |
+| ---- | --------------------------------------------------------------------------- | ---------------------------------------------- |
+| Rust | [Rust Book](https://doc.rust-lang.org/book/)                                | 如果您对Rust不够熟悉，我们强烈建议阅读这本书。 |
+| eBPF | [Cilium BPF and XDP Reference Guide](https://docs.cilium.io/en/stable/bpf/) | 如果您对eBPF不够熟悉，本指南非常出色。         |
 
-生成的代码如下所示：
+## 如何使用本指南
 
-```rust linenums="1" title="xdp-log-ebpf/src/main.rs"
---8<-- "examples/xdp-log/xdp-log-ebpf/src/main.rs"
-```
+本指南通常假定您从头到尾阅读。后面的章节基于前面章节中的概念，而前面的章节可能不会深入探讨某个主题，而是在后面的章节中重新讨论该主题。
 
-1. 在这里我们定义`ptr_at`以确保数据包访问总是进行边界检查。
-2. 使用`ptr_at`读取我们的以太网头。
-3. 在这里我们记录IP和端口。
+## eBPF程序约束
 
-不要忘记重新构建您的eBPF程序！
+eBPF虚拟机是一个受限的运行时环境，我们的eBPF程序将在其中运行：
 
-## 用户空间组件
+- 只有512字节的堆栈（如果使用尾调用则为256字节）。
+- 无法访问堆空间，数据必须写入映射。
 
-我们的用户空间代码与上一章没有太大区别，但为了参考，以下是代码：
+即使是用C语言编写的应用程序也被限制在语言特性的一个子集内，而我们在Rust中也有类似的约束：
 
-```rust linenums="1" title="xdp-log/src/main.rs"
---8<-- "examples/xdp-log/xdp-log/src/main.rs"
-```
+- 不可使用标准库。我们使用`core`。
+- 不可使用`core::fmt`及其依赖的特性，例如`Display`和`Debug`。
+- 由于没有堆空间，我们无法使用`alloc`或`collections`。
+- 不可`panic`，因为eBPF VM不支持堆栈展开或`abort`指令。
+- 没有`main`函数。
 
-## 运行程序
-
-与之前一样，可以通过提供接口名称作为参数来覆盖接口，例如，`RUST_LOG=info cargo xtask run -- --iface wlp2s0`。
-
-```console
-$ RUST_LOG=info cargo xtask run
-[2022-12-22T11:32:21Z INFO  xdp_log] SRC IP: 172.52.22.104, SRC PORT: 443
-[2022-12-22T11:32:21Z INFO  xdp_log] SRC IP: 172.52.22.104, SRC PORT: 443
-[2022-12-22T11:32:21Z INFO  xdp_log] SRC IP: 172.52.22.104, SRC PORT: 443
-[2022-12-22T11:32:21Z INFO  xdp_log] SRC IP: 172.52.22.104, SRC PORT: 443
-[2022-12-22T11:32:21Z INFO  xdp_log] SRC IP: 234.130.159.162, SRC PORT: 443
-```
-
-每次接收到数据包时，程序会记录其源IP地址和端口。
+此外，由于我们直接从内核内存读取，编写的很多代码都是`unsafe`的。
